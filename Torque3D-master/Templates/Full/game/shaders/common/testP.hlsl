@@ -16,7 +16,7 @@ float4 main( ConnectData IN ) : COLOR
      
    // RETRIEVE THE DIFFUSE COLOR  FOR THE CURRENT PIXEL USING THE DECLARED SAMPLER     
    //float4 Diff = tex2D(DiffSampler, TexUV);
-   const float intensity = 0.8f;
+   const float intensity = 0.08f;
    float4 Diff = float4(intensity.xxx, 1);
    
    // MERGE ALL ON THE FINAL RESULT     

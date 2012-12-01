@@ -41,7 +41,7 @@ float4 main(
   float  phase = compute_phase( view_vector, -lightDirection);
 
 // Compute Fresnel term, assuming a vertical normal (0,-1,0)
-  float  dotVN = saturate( dot(-view_vector, float3(0,-1,0) ) );
+  float  dotVN = saturate( dot(-view_vector, float3(0,0,-1) ) );
 
   float3 color = (0.15 + intensity*shafts.xyz)*phase; // *   // view dep. scattering
 				 //shafts.a;  // shadow

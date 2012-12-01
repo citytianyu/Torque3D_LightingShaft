@@ -130,14 +130,12 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	}
 
 	const Point3F cameraPos = state->getCameraPosition();
-	//const Point3F cameraPos(0, 1000, 0);
-	//const Point3F testPos = state->getCameraPosition();
 
 	// get sun pos
 	LightInfo *sunLight = LIGHTMGR->getSpecialLight( LightManager::slSunLightType );
-	//Point3F SunPos = sunLight->getPosition();
+	Point3F SunPos = sunLight->getPosition();
 	//SunPos *= 1000.f;
-	Point3F SunPos(0, 0, 1000.f);
+	//Point3F SunPos(0, 0, 1000.f);
 
 	float OrgDistSun_Cam = (SunPos - cameraPos).len();
 	
@@ -157,8 +155,6 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		if (fabs(lengthSun_Cam) > 0.001f)
 		{
 			eulerSun_Cam_X = mAsin(dirSun_Cam.z / lengthSun_Cam);
-			//if (dirSun_Cam.x < 0)
-			//	eulerSun_Cam_X = M_PI_F - eulerSun_Cam_X;
 		}
 		else
 			eulerSun_Cam_X = 0.f;
