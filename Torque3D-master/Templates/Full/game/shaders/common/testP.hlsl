@@ -6,7 +6,7 @@ uniform sampler2D DiffSampler: register( S0 );
 struct ConnectData              
 {              
    float4 Position        : POSITION;         
-   float2 TexCoord        : TEXCOORD0;        
+   float4 TexCoord        : TEXCOORD0;        
 };        
      
 float4 main( ConnectData IN ) : COLOR       

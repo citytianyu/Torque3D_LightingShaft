@@ -130,6 +130,8 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	}
 
 	const Point3F cameraPos = state->getCameraPosition();
+	//const Point3F cameraPos(0, 1000, 0);
+	//const Point3F testPos = state->getCameraPosition();
 
 	// get sun pos
 	LightInfo *sunLight = LIGHTMGR->getSpecialLight( LightManager::slSunLightType );
@@ -152,11 +154,31 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		float lengthSun_Cam_XY = Point2F(dirSun_Cam.x, dirSun_Cam.y).len();
 
 		float eulerSun_Cam_X, eulerSun_Cam_Z;
-		eulerSun_Cam_X = mAsin(dirSun_Cam.z / lengthSun_Cam);
-		eulerSun_Cam_Z = mAcos(dirSun_Cam.x / lengthSun_Cam_XY);
+		if (fabs(lengthSun_Cam) > 0.001f)
+		{
+			eulerSun_Cam_X = mAsin(dirSun_Cam.z / lengthSun_Cam);
+			//if (dirSun_Cam.x < 0)
+			//	eulerSun_Cam_X = M_PI_F - eulerSun_Cam_X;
+		}
+		else
+			eulerSun_Cam_X = 0.f;
+		eulerSun_Cam_X = -eulerSun_Cam_X;
 
-		//viewRotationMatrix *= MatrixF(EulerF(eulerSun_Cam_X, 0, 0));
-		//viewRotationMatrix *= MatrixF(EulerF(0, 0, eulerSun_Cam_Z));
+		if (fabs(lengthSun_Cam_XY) > 0.001f)
+		{
+			eulerSun_Cam_Z = mAcos(dirSun_Cam.x / lengthSun_Cam_XY);
+			if (dirSun_Cam.y < 0)
+				eulerSun_Cam_Z = M_PI_F * 2.f - eulerSun_Cam_Z;
+		}
+		else
+			eulerSun_Cam_Z = 0.f;
+
+		eulerSun_Cam_Z = -eulerSun_Cam_Z;
+
+
+		viewRotationMatrix *= MatrixF(EulerF(0, 0, eulerSun_Cam_Z));
+		viewRotationMatrix *= MatrixF(EulerF(0, 0, M_PI_F / 2.f));
+		viewRotationMatrix *= MatrixF(EulerF(eulerSun_Cam_X, 0, 0));
 		viewRotationMatrix *= MatrixF(EulerF(-M_PI_F / 2.f, 0, 0));
 	}
 
