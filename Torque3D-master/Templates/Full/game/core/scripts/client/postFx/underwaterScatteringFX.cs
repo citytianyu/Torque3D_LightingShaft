@@ -40,15 +40,14 @@ singleton PostEffect( UwScatteringFx )
 {   
    allowReflectPass = false;
       
-   renderTime = "PFXAfterBin";
-   renderBin = "ObjTranslucentBin";   
+   renderTime = "PFXAfterDiffuse";
    
    shader = UwScatteringFxShader;
    stateBlock = PFX_DefaultStateBlock;
    texture[0] = "#underwaterScatteringBuffer";
    target = "$outTex";
   
-   renderPriority = 7;
+   renderPriority = 2;
    isEnabled = true;
    
    new PostEffect()
