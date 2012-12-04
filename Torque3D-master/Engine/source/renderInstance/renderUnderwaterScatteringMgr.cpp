@@ -37,6 +37,11 @@ RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
 	RenderInstInitialized = false;
 	LastTime = 0.f;
 	MatInst = NULL;	// TODO : Load a specific material
+
+	for (int i = 0; i < 18; ++i)
+	{
+		
+	}
 }
 
 RenderUnderwaterScatteringMgr::~RenderUnderwaterScatteringMgr()
@@ -134,8 +139,6 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	// get sun pos
 	LightInfo *sunLight = LIGHTMGR->getSpecialLight( LightManager::slSunLightType );
 	Point3F SunPos = sunLight->getPosition();
-	//SunPos *= 1000.f;
-	//Point3F SunPos(0, 0, 1000.f);
 
 	float OrgDistSun_Cam = (SunPos - cameraPos).len();
 	
@@ -181,7 +184,6 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 
 	MatrixF translationMatrix;
 	translationMatrix.identity();
-	//translationMatrix.setPosition(Point3F(0, 0, 1000.f));
 	translationMatrix.setPosition(SunPos);
 
 	float currentTime = Sim::getCurrentTime();
@@ -221,7 +223,6 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			RotationSpeed = 100.f;
 			rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
 			rotationMatrix = MatrixF(EulerF(0, 0, rotation));
-			//FinalMatrix = (*ScatteringMeshRenderInst.objectToWorld) * rotationMatrix;
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
@@ -232,8 +233,8 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 
 		if (layerIndex == 1)
 		{
-			DistCam_Sun = OrgDistSun_Cam;
-			HighPosPercentage = 0.05f;
+			DistCam_Sun = OrgDistSun_Cam + 100.f;
+			HighPosPercentage = 0.10f;
 			HighPosZ = localSunPos.z - HighPosPercentage * DistCam_Sun;
 			LowPosZ = localSunPos.z - DistCam_Sun;
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
@@ -241,7 +242,6 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			RotationSpeed = -50.f;
 			rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
 			rotationMatrix = MatrixF(EulerF(0, 0, rotation));
-			//FinalMatrix = (*ScatteringMeshRenderInst.objectToWorld) * rotationMatrix;
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
@@ -253,16 +253,15 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 
 		if (layerIndex == 2)
 		{
-			DistCam_Sun = OrgDistSun_Cam;
-			HighPosPercentage = 0.05f;
+			DistCam_Sun = OrgDistSun_Cam + 100.f;
+			HighPosPercentage = 0.15f;
 			HighPosZ = localSunPos.z - HighPosPercentage * DistCam_Sun;
 			LowPosZ = localSunPos.z - DistCam_Sun;
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
 
 			RotationSpeed = +20.f;
 			rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			rotationMatrix = MatrixF(EulerF(0, 0, rotation));
-			//FinalMatrix = (*ScatteringMeshRenderInst.objectToWorld) * rotationMatrix; 
+			rotationMatrix = MatrixF(EulerF(0, 0, rotation)); 
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;

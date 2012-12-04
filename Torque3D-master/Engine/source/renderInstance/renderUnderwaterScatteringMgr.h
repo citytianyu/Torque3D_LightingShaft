@@ -25,6 +25,9 @@ protected:
 	bool								RenderInstInitialized;
 	float								LastTime;
 
+	float								RandomNumsGo[18];
+	float								RandomNumsBack[18];
+
 	// mesh property
 	GFXVertexBufferHandle<GFXVertexPT>	VertexBuffer;
 	GFXPrimitiveBufferHandle			PrimitiveBuffer;
