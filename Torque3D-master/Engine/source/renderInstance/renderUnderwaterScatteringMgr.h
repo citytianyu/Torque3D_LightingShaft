@@ -24,6 +24,8 @@ protected:
 	MeshRenderInst						ScatteringMeshRenderInst;
 	bool								RenderInstInitialized;
 	float								LastTime;
+	float								RotateInterval;
+	bool								Go_Back;
 
 	float								RandomNumsGo[18];
 	float								RandomNumsBack[18];

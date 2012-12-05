@@ -36,11 +36,15 @@ RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
 	ScatteringMeshRenderInst.clear();
 	RenderInstInitialized = false;
 	LastTime = 0.f;
+	RotateInterval = 3.f;
+	Go_Back =  true;
 	MatInst = NULL;	// TODO : Load a specific material
 
+	MRandomR250 randGen;
 	for (int i = 0; i < 18; ++i)
 	{
-		
+		RandomNumsGo[i] = randGen.randF();
+		RandomNumsBack[i] = randGen.randF();
 	}
 }
 
@@ -202,6 +206,13 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	SceneData sgData;
 	sgData.init(state);
 
+	static U32 RandomOffset = 0;
+	if (deltaTime > RotateInterval)
+	{
+		RandomOffset = ++RandomOffset % 18;
+		LastTime = currentTime;
+	}
+
 	const Point3F localSunPos(0, 0, 0);
 	for (U32 layerIndex = 0; layerIndex < LayerNum; ++layerIndex)
 	{
@@ -209,7 +220,10 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		float ScatteringAngle, rotation, RotationSpeed;
 		MatrixF rotationMatrix;
 		float tanValue, lowRadius, highRadius, angleOffset, angleStep;
+		U32 randomIndex;
 
+		RotationSpeed = 0.f;
+		rotationMatrix.identity();
 		FinalMatrix.identity();
 
 		if (layerIndex == 0)
@@ -221,14 +235,16 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
 
 			RotationSpeed = 100.f;
-			rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			rotationMatrix = MatrixF(EulerF(0, 0, rotation));
+			//rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
+			//rotationMatrix = MatrixF(EulerF(0, 0, rotation));
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
 			highRadius = lowRadius * HighPosPercentage;
 			angleOffset = 10.f / 180.f * M_PI_F;		// just test
 			angleStep = M_PI_F * 2.f / QuadCount;
+
+			randomIndex = RandomOffset;
 		}
 
 		if (layerIndex == 1)
@@ -240,8 +256,8 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
 
 			RotationSpeed = -50.f;
-			rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			rotationMatrix = MatrixF(EulerF(0, 0, rotation));
+			//rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
+			//rotationMatrix = MatrixF(EulerF(0, 0, rotation));
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
@@ -249,6 +265,7 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			angleOffset = 13.f / 180.f * M_PI_F;		// just test
 			angleStep = M_PI_F * 2.f / QuadCount;
 
+			randomIndex = RandomOffset + 1;
 		}
 
 		if (layerIndex == 2)
@@ -260,8 +277,8 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
 
 			RotationSpeed = +20.f;
-			rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			rotationMatrix = MatrixF(EulerF(0, 0, rotation)); 
+			//rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
+			//rotationMatrix = MatrixF(EulerF(0, 0, rotation)); 
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
@@ -269,6 +286,7 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			angleOffset = 15.f / 180.f * M_PI_F;		// just test
 			angleStep = M_PI_F * 2.f / QuadCount;
 
+			randomIndex = RandomOffset + 2;
 		}
 
 		GFXVertexPT* vertPtr = VertexBuffer.lock();
@@ -277,7 +295,10 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		{
 			float x, y, theta;
 
-			theta = i * angleStep;
+			//theta = i * angleStep;
+			U32 ranIndex = (randomIndex + i) % 18;
+			theta = Go_Back ? (i * angleStep + deltaTime * RotationSpeed * RandomNumsGo[ranIndex] / 180.f * M_PI_F)
+				: (i * angleStep - deltaTime * RotationSpeed * RandomNumsGo[ranIndex] / 180.f * M_PI_F);
 			CalcPosition(x, y, theta, highRadius);
 
 			U32 vertIndex = i * 4;
