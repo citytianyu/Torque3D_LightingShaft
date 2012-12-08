@@ -15,6 +15,9 @@
 #include "materials/baseMatInstance.h"
 #include "materials/materialManager.h"
 #include "materials/customMaterialDefinition.h"
+#include "T3D/gameBase/gameConnection.h"
+#include "T3D/player.h"
+#include "T3D/camera.h"
 
 IMPLEMENT_CONOBJECT(RenderUnderwaterScatteringMgr);
 
@@ -36,15 +39,17 @@ RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
 	ScatteringMeshRenderInst.clear();
 	RenderInstInitialized = false;
 	LastTime = 0.f;
-	RotateInterval = 3.f;
+	RotateInterval = 0.1f;
+	RotateProcess = 0.f;
+	ThetaBackup = NULL;
+	ThetaBackupInitialized = false;
 	Go_Back =  true;
 	MatInst = NULL;	// TODO : Load a specific material
 
 	MRandomR250 randGen;
-	for (int i = 0; i < 18; ++i)
+	for (int i = 0; i < QUADS_PER_LAYER; ++i)
 	{
-		RandomNumsGo[i] = randGen.randF();
-		RandomNumsBack[i] = randGen.randF();
+		RandomNums[i] = randGen.randF() * 5 / 180.f * M_PI_F;
 	}
 }
 
@@ -52,6 +57,10 @@ RenderUnderwaterScatteringMgr::~RenderUnderwaterScatteringMgr()
 {
 	ScatteringMeshRenderInst.clear();
 	SAFE_DELETE(MatInst);
+	if (ThetaBackup)
+	{
+		delete[] ThetaBackup;
+	}
 }
 
 inline void CalcPosition(float& x, float& y, float theta, float radius)
@@ -64,31 +73,58 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 {
 	PROFILE_SCOPE(RenderUnderwaterScatteringMgr_Render);
 
-	// TODO : Diable when not underwater
+	if (!UwScatteringFX)
+		UwScatteringFX = dynamic_cast<PostEffect*>( Sim::findObject( "UwScatteringFx" ) );
+	if (!UwScatteringFX)
+		return;
+
+	Point3F cameraPos = state->getCameraPosition();
+
+#define SKIP_THIS_EFFECT			\
+	UwScatteringFX->setSkip(true);	\
+	return;
+
+	GameConnection* connection = GameConnection::getLocalClientConnection();
+	if( connection )
+	{
+		GameBase* base = connection->getControlObject();
+		Player* player = dynamic_cast<Player*>(base);
+		Camera* camera = dynamic_cast<Camera*>(base);
+		if(player && player->pointInWater(cameraPos))
+			UwScatteringFX->setSkip(false);
+		else if (camera && camera->pointInWater(cameraPos))
+			UwScatteringFX->setSkip(false);
+		else
+		{
+			SKIP_THIS_EFFECT;
+		}
+	}
+	else
+	{
+		SKIP_THIS_EFFECT;
+	}
 
 	RenderPassManager* renderPass = state->getRenderPass();
 
 	// initialize the render instance resource
 	// every 2 triangles make a quad
-	U32 TriangleNum_PerLayer = 2 * 18;
+	U32 TriangleNum_PerLayer = 2 * QUADS_PER_LAYER;
 	U32 LayerNum = 3;
 	U32 TriangleCount = TriangleNum_PerLayer;
 	U32 QuadCount = TriangleCount / 2;
-	U32 VertexCount = QuadCount * 4;
-	U32 IndexCount = QuadCount * 6;
+	U32 TotalQuadCount = QuadCount * LayerNum;
+	U32 VertexCount = TotalQuadCount * 4;
+	U32 IndexCount = TotalQuadCount * 6;
 	if (!RenderInstInitialized)
 	{
 		LastTime = Sim::getCurrentTime();
 		//MatInst = dynamic_cast<BaseMatInstance*>(Sim::findObject("TestScattering"));
 		CustomMaterial *custMat;
 		if ( Sim::findObject( "TestScattering", custMat ) && custMat->mShaderData )
-		{
 			MatInst = custMat->createMatInstance();
-		}
 		else
-		{
 			MatInst = MATMGR->createMatInstance("TestScattering");
-		}
+
 		const GFXVertexFormat* flags = getGFXVertexFormat<GFXVertexPT>();
 		if (MatInst && MatInst->init(MATMGR->getDefaultFeatures(), flags))
 		{
@@ -102,7 +138,7 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			U16* indexBuffer;
 			PrimitiveBuffer.lock(&indexBuffer);
 
-			for (U32 i = 0; i < QuadCount; ++i)
+			for (U32 i = 0; i < TotalQuadCount; ++i)
 			{
 				U32 indexIndex = i * 6;
 				U32 vertexIndex = i * 4;
@@ -129,16 +165,19 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		ScatteringMeshRenderInst.prim->type = GFXTriangleList;
 		ScatteringMeshRenderInst.prim->minIndex = 0;
 		ScatteringMeshRenderInst.prim->startIndex = 0;
-		ScatteringMeshRenderInst.prim->numPrimitives = TriangleCount;
+		ScatteringMeshRenderInst.prim->numPrimitives = TotalQuadCount * 2;
 		ScatteringMeshRenderInst.prim->startVertex = 0;
 		ScatteringMeshRenderInst.prim->numVertices = VertexCount;
 		ScatteringMeshRenderInst.defaultKey = 0;
 		ScatteringMeshRenderInst.defaultKey2 = 0;
 
 		RenderInstInitialized = true;
-	}
 
-	const Point3F cameraPos = state->getCameraPosition();
+		if (!ThetaBackup)
+		{
+			ThetaBackup = new float[TotalQuadCount];
+		}
+	}
 
 	// get sun pos
 	LightInfo *sunLight = LIGHTMGR->getSpecialLight( LightManager::slSunLightType );
@@ -190,6 +229,8 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	translationMatrix.identity();
 	translationMatrix.setPosition(SunPos);
 
+	MatrixF rotationMatrix;
+
 	float currentTime = Sim::getCurrentTime();
 	float deltaTime = (currentTime - LastTime) / TickMs / 1000.f;
 
@@ -207,18 +248,14 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	sgData.init(state);
 
 	static U32 RandomOffset = 0;
-	if (deltaTime > RotateInterval)
-	{
-		RandomOffset = ++RandomOffset % 18;
-		LastTime = currentTime;
-	}
+	RotateProcess += deltaTime;
+	LastTime = currentTime;
 
 	const Point3F localSunPos(0, 0, 0);
 	for (U32 layerIndex = 0; layerIndex < LayerNum; ++layerIndex)
 	{
 		float DistCam_Sun, HighPosPercentage, HighPosZ, LowPosZ;
-		float ScatteringAngle, rotation, RotationSpeed;
-		MatrixF rotationMatrix;
+		float ScatteringAngle, /*rotation,*/ RotationSpeed;
 		float tanValue, lowRadius, highRadius, angleOffset, angleStep;
 		U32 randomIndex;
 
@@ -294,14 +331,31 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		for (U32 i = 0; i < QuadCount; i++)
 		{
 			float x, y, theta;
+			U32 backupIndex = layerIndex * QuadCount + i;
 
-			//theta = i * angleStep;
-			U32 ranIndex = (randomIndex + i) % 18;
-			theta = Go_Back ? (i * angleStep + deltaTime * RotationSpeed * RandomNumsGo[ranIndex] / 180.f * M_PI_F)
-				: (i * angleStep - deltaTime * RotationSpeed * RandomNumsGo[ranIndex] / 180.f * M_PI_F);
+			if (!ThetaBackupInitialized)
+			{
+				ThetaBackup[backupIndex] = i * angleStep;
+			}
+
+			U32 curRanIndex = (randomIndex + i) % QUADS_PER_LAYER;
+
+			//U32 preRanIndex = (curRanIndex + QUADS_PER_LAYER - 1) % QUADS_PER_LAYER;
+
+			if (Go_Back)
+			{
+				theta = ThetaBackup[backupIndex] + deltaTime * RotationSpeed * RandomNums[curRanIndex];
+			}
+			else
+			{
+				theta = ThetaBackup[backupIndex] - deltaTime * RotationSpeed * RandomNums[curRanIndex];
+			}
+
+			ThetaBackup[backupIndex] = theta;
+
 			CalcPosition(x, y, theta, highRadius);
 
-			U32 vertIndex = i * 4;
+			U32 vertIndex = i * 4 + layerIndex * QuadCount * 4;
 			vertPtr[vertIndex].point.set(localSunPos.x + x, localSunPos.y + y, HighPosZ);
 			vertPtr[vertIndex++].texCoord.set(0, 0);
 
@@ -320,29 +374,40 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		}
 
 		VertexBuffer.unlock();
+	}
 
-		FinalMatrix = translationMatrix * viewRotationMatrix * rotationMatrix;
+	FinalMatrix = translationMatrix * viewRotationMatrix * rotationMatrix;
 
-		setupSGData(&ScatteringMeshRenderInst, sgData);
+	setupSGData(&ScatteringMeshRenderInst, sgData);
 
-		while (ScatteringMeshRenderInst.matInst->setupPass(state, sgData))
-		{
-			//matrixSet.setWorld(*ScatteringMeshRenderInst.objectToWorld);
-			matrixSet.setWorld(FinalMatrix);
-			matrixSet.setView(*ScatteringMeshRenderInst.worldToCamera);
-			matrixSet.setProjection(*ScatteringMeshRenderInst.projection);
-			ScatteringMeshRenderInst.matInst->setTransforms(matrixSet, state);
-			ScatteringMeshRenderInst.matInst->setSceneInfo(state, sgData);
-			ScatteringMeshRenderInst.matInst->setBuffers(ScatteringMeshRenderInst.vertBuff, ScatteringMeshRenderInst.primBuff);
+	while (ScatteringMeshRenderInst.matInst->setupPass(state, sgData))
+	{
+		matrixSet.setWorld(FinalMatrix);
+		matrixSet.setView(*ScatteringMeshRenderInst.worldToCamera);
+		matrixSet.setProjection(*ScatteringMeshRenderInst.projection);
+		ScatteringMeshRenderInst.matInst->setTransforms(matrixSet, state);
+		ScatteringMeshRenderInst.matInst->setSceneInfo(state, sgData);
+		ScatteringMeshRenderInst.matInst->setBuffers(ScatteringMeshRenderInst.vertBuff, ScatteringMeshRenderInst.primBuff);
 
-			if (ScatteringMeshRenderInst.prim)
-				GFX->drawPrimitive(*ScatteringMeshRenderInst.prim);
-			else
-				GFX->drawPrimitive(ScatteringMeshRenderInst.primBuffIndex);
-		}
+		if (ScatteringMeshRenderInst.prim)
+			GFX->drawPrimitive(*ScatteringMeshRenderInst.prim);
+		else
+			GFX->drawPrimitive(ScatteringMeshRenderInst.primBuffIndex);
 	}
 
 	// Finish up.
 	if ( isRenderingToTarget )
 		_onPostRender();
+
+	if (!ThetaBackupInitialized)
+	{
+		ThetaBackupInitialized = true;
+	}
+
+	if (RotateProcess > RotateInterval)
+	{
+		RandomOffset = ++RandomOffset % QUADS_PER_LAYER;
+		Go_Back = !Go_Back;
+		RotateProcess -= RotateInterval;
+	}
 }

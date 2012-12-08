@@ -5,8 +5,11 @@
 #include "renderInstance/renderTexTargetBinManager.h"
 #endif
 
+#include "postFx/postEffect.h"
 #include "renderInstance/renderPassManager.h"
 #include "gfx/gfxPrimitiveBuffer.h"
+
+const U32 QUADS_PER_LAYER = 18;
 
 class RenderUnderwaterScatteringMgr : public RenderTexTargetBinManager
 {
@@ -25,16 +28,20 @@ protected:
 	bool								RenderInstInitialized;
 	float								LastTime;
 	float								RotateInterval;
+	float								RotateProcess;
 	bool								Go_Back;
 
-	float								RandomNumsGo[18];
-	float								RandomNumsBack[18];
+	float								RandomNums[QUADS_PER_LAYER];
+	float*								ThetaBackup;
+	bool								ThetaBackupInitialized;
 
 	// mesh property
 	GFXVertexBufferHandle<GFXVertexPT>	VertexBuffer;
 	GFXPrimitiveBufferHandle			PrimitiveBuffer;
 	BaseMatInstance*					MatInst;
 	GFXPrimitive						PrimitiveState;
+
+	SimObjectPtr<PostEffect>			UwScatteringFX;
 };
 
 #endif _RENDERUNDERWATERSCATTERINGMGR_H
