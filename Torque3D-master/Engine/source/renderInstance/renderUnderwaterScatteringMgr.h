@@ -10,6 +10,7 @@
 #include "gfx/gfxPrimitiveBuffer.h"
 
 const U32 QUADS_PER_LAYER = 18;
+const U32 LAYER_NUM = 3;
 
 class RenderUnderwaterScatteringMgr : public RenderTexTargetBinManager
 {
@@ -24,18 +25,53 @@ public:
 	DECLARE_CONOBJECT(RenderUnderwaterScatteringMgr);
 
 protected:
-	MeshRenderInst						ScatteringMeshRenderInst;
+	class ShaftInfo
+	{
+	public:
+		ShaftInfo()
+		{
+			RotateInterval = 0.1f;
+			RotateProcess = 0.f;
+			RandomOffset = 0;
+			RotateSpeed = 3.f;
+			GoBackState = true;
+		}
+
+		void	AdvanceTime(float deltaTime) { RotateProcess += deltaTime; }
+		void	OnPostRender()
+		{
+			if (RotateProcess > RotateInterval)
+			{
+				RandomOffset = ++RandomOffset % QUADS_PER_LAYER;
+				GoBackState = !GoBackState;
+				RotateProcess -= RotateInterval;
+			}
+		}
+
+		float		RotateInterval;
+		float		RotateProcess;
+		U32			RandomOffset;
+		float		RotateSpeed;
+		bool		GoBackState;
+
+	private:
+
+	};
+
+	void			GetViewRotationMatrix(const Point3F& distSun_Cam, MatrixF& viewRotationMatrix);
+	bool			PointInWater(Point3F& point);
+
+	ShaftInfo							ShaftInfos[LAYER_NUM];
+
 	bool								RenderInstInitialized;
 	float								LastTime;
-	float								RotateInterval;
-	float								RotateProcess;
-	bool								Go_Back;
 
 	float								RandomNums[QUADS_PER_LAYER];
 	float*								ThetaBackup;
 	bool								ThetaBackupInitialized;
 
 	// mesh property
+	MeshRenderInst						ScatteringMeshRenderInst;
 	GFXVertexBufferHandle<GFXVertexPT>	VertexBuffer;
 	GFXPrimitiveBufferHandle			PrimitiveBuffer;
 	BaseMatInstance*					MatInst;

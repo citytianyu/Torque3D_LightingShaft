@@ -39,17 +39,24 @@ RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
 	ScatteringMeshRenderInst.clear();
 	RenderInstInitialized = false;
 	LastTime = 0.f;
-	RotateInterval = 0.1f;
-	RotateProcess = 0.f;
+	ShaftInfos[0].RotateInterval = 0.25f;
+	ShaftInfos[1].RotateInterval = 0.2f;
+	ShaftInfos[2].RotateInterval = 0.1f;
+
+	ShaftInfos[0].RotateSpeed = 200.f;
+	ShaftInfos[1].RotateSpeed = -150.f;
+	ShaftInfos[2].RotateSpeed = 100.f;
+
+	//RotateProcess[0] = RotateProcess[1] = RotateProcess[2] = 0.f;
 	ThetaBackup = NULL;
 	ThetaBackupInitialized = false;
-	Go_Back =  true;
+
 	MatInst = NULL;	// TODO : Load a specific material
 
 	MRandomR250 randGen;
 	for (int i = 0; i < QUADS_PER_LAYER; ++i)
 	{
-		RandomNums[i] = randGen.randF() * 5 / 180.f * M_PI_F;
+		RandomNums[i] = randGen.randF() / 180.f * M_PI_F;
 	}
 }
 
@@ -80,28 +87,14 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 
 	Point3F cameraPos = state->getCameraPosition();
 
-#define SKIP_THIS_EFFECT			\
-	UwScatteringFX->setSkip(true);	\
-	return;
-
-	GameConnection* connection = GameConnection::getLocalClientConnection();
-	if( connection )
+	if (PointInWater(cameraPos))
 	{
-		GameBase* base = connection->getControlObject();
-		Player* player = dynamic_cast<Player*>(base);
-		Camera* camera = dynamic_cast<Camera*>(base);
-		if(player && player->pointInWater(cameraPos))
-			UwScatteringFX->setSkip(false);
-		else if (camera && camera->pointInWater(cameraPos))
-			UwScatteringFX->setSkip(false);
-		else
-		{
-			SKIP_THIS_EFFECT;
-		}
+		UwScatteringFX->setSkip(false);
 	}
 	else
 	{
-		SKIP_THIS_EFFECT;
+		UwScatteringFX->setSkip(true);
+		return;
 	}
 
 	RenderPassManager* renderPass = state->getRenderPass();
@@ -109,10 +102,9 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	// initialize the render instance resource
 	// every 2 triangles make a quad
 	U32 TriangleNum_PerLayer = 2 * QUADS_PER_LAYER;
-	U32 LayerNum = 3;
 	U32 TriangleCount = TriangleNum_PerLayer;
 	U32 QuadCount = TriangleCount / 2;
-	U32 TotalQuadCount = QuadCount * LayerNum;
+	U32 TotalQuadCount = QuadCount * LAYER_NUM;
 	U32 VertexCount = TotalQuadCount * 4;
 	U32 IndexCount = TotalQuadCount * 6;
 	if (!RenderInstInitialized)
@@ -183,54 +175,22 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	LightInfo *sunLight = LIGHTMGR->getSpecialLight( LightManager::slSunLightType );
 	Point3F SunPos = sunLight->getPosition();
 
-	float OrgDistSun_Cam = (SunPos - cameraPos).len();
+	Point3F vecSun_Cam = SunPos - cameraPos;
+	float DistSun_Cam = vecSun_Cam.len();
 	
 	MatrixF FinalMatrix;
 	FinalMatrix.identity();
+
 	// compute cam to sun rotation matrix
 	MatrixF viewRotationMatrix;
-	viewRotationMatrix.identity();
-	{
-		Point3F dirSun_Cam = cameraPos - SunPos;
-		dirSun_Cam.normalize();
-
-		float lengthSun_Cam = dirSun_Cam.len();
-		float lengthSun_Cam_XY = Point2F(dirSun_Cam.x, dirSun_Cam.y).len();
-
-		float eulerSun_Cam_X, eulerSun_Cam_Z;
-		if (fabs(lengthSun_Cam) > 0.001f)
-		{
-			eulerSun_Cam_X = mAsin(dirSun_Cam.z / lengthSun_Cam);
-		}
-		else
-			eulerSun_Cam_X = 0.f;
-		eulerSun_Cam_X = -eulerSun_Cam_X;
-
-		if (fabs(lengthSun_Cam_XY) > 0.001f)
-		{
-			eulerSun_Cam_Z = mAcos(dirSun_Cam.x / lengthSun_Cam_XY);
-			if (dirSun_Cam.y < 0)
-				eulerSun_Cam_Z = M_PI_F * 2.f - eulerSun_Cam_Z;
-		}
-		else
-			eulerSun_Cam_Z = 0.f;
-
-		eulerSun_Cam_Z = -eulerSun_Cam_Z;
-
-
-		viewRotationMatrix *= MatrixF(EulerF(0, 0, eulerSun_Cam_Z));
-		viewRotationMatrix *= MatrixF(EulerF(0, 0, M_PI_F / 2.f));
-		viewRotationMatrix *= MatrixF(EulerF(eulerSun_Cam_X, 0, 0));
-		viewRotationMatrix *= MatrixF(EulerF(-M_PI_F / 2.f, 0, 0));
-	}
-
+	GetViewRotationMatrix(-vecSun_Cam, viewRotationMatrix);
 
 	MatrixF translationMatrix;
 	translationMatrix.identity();
 	translationMatrix.setPosition(SunPos);
 
-	MatrixF rotationMatrix;
-
+	// get advance time
+	// but this is not corresponding to the time in real world
 	float currentTime = Sim::getCurrentTime();
 	float deltaTime = (currentTime - LastTime) / TickMs / 1000.f;
 
@@ -247,83 +207,65 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	SceneData sgData;
 	sgData.init(state);
 
-	static U32 RandomOffset = 0;
-	RotateProcess += deltaTime;
+	for (U32 i = 0; i < LAYER_NUM; ++i)
+	{
+		ShaftInfos[i].AdvanceTime(deltaTime);
+	}
+
 	LastTime = currentTime;
 
 	const Point3F localSunPos(0, 0, 0);
-	for (U32 layerIndex = 0; layerIndex < LayerNum; ++layerIndex)
+	for (U32 layerIndex = 0; layerIndex < LAYER_NUM; ++layerIndex)
 	{
 		float DistCam_Sun, HighPosPercentage, HighPosZ, LowPosZ;
-		float ScatteringAngle, /*rotation,*/ RotationSpeed;
+		float ScatteringAngle;
 		float tanValue, lowRadius, highRadius, angleOffset, angleStep;
-		U32 randomIndex;
 
-		RotationSpeed = 0.f;
-		rotationMatrix.identity();
 		FinalMatrix.identity();
 
 		if (layerIndex == 0)
 		{
-			DistCam_Sun = OrgDistSun_Cam + 100.f;
+			DistCam_Sun = DistSun_Cam + 100.f;
 			HighPosPercentage = 0.05f;
 			HighPosZ = localSunPos.z - HighPosPercentage * DistCam_Sun;
 			LowPosZ = localSunPos.z - DistCam_Sun;
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
-
-			RotationSpeed = 100.f;
-			//rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			//rotationMatrix = MatrixF(EulerF(0, 0, rotation));
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
 			highRadius = lowRadius * HighPosPercentage;
 			angleOffset = 10.f / 180.f * M_PI_F;		// just test
 			angleStep = M_PI_F * 2.f / QuadCount;
-
-			randomIndex = RandomOffset;
 		}
 
 		if (layerIndex == 1)
 		{
-			DistCam_Sun = OrgDistSun_Cam + 100.f;
+			DistCam_Sun = DistSun_Cam + 100.f;
 			HighPosPercentage = 0.10f;
 			HighPosZ = localSunPos.z - HighPosPercentage * DistCam_Sun;
 			LowPosZ = localSunPos.z - DistCam_Sun;
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
-
-			RotationSpeed = -50.f;
-			//rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			//rotationMatrix = MatrixF(EulerF(0, 0, rotation));
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
 			highRadius = lowRadius * HighPosPercentage;
 			angleOffset = 13.f / 180.f * M_PI_F;		// just test
 			angleStep = M_PI_F * 2.f / QuadCount;
-
-			randomIndex = RandomOffset + 1;
 		}
 
 		if (layerIndex == 2)
 		{
-			DistCam_Sun = OrgDistSun_Cam + 100.f;
+			DistCam_Sun = DistSun_Cam + 100.f;
 			HighPosPercentage = 0.15f;
 			HighPosZ = localSunPos.z - HighPosPercentage * DistCam_Sun;
 			LowPosZ = localSunPos.z - DistCam_Sun;
 			ScatteringAngle = 5.f / 180.f * M_PI_F;
-
-			RotationSpeed = +20.f;
-			//rotation = deltaTime * RotationSpeed / 180.f * M_PI_F;
-			//rotationMatrix = MatrixF(EulerF(0, 0, rotation)); 
 
 			tanValue = mTan(ScatteringAngle);
 			lowRadius = tanValue * DistCam_Sun;
 			highRadius = lowRadius * HighPosPercentage;
 			angleOffset = 15.f / 180.f * M_PI_F;		// just test
 			angleStep = M_PI_F * 2.f / QuadCount;
-
-			randomIndex = RandomOffset + 2;
 		}
 
 		GFXVertexPT* vertPtr = VertexBuffer.lock();
@@ -332,23 +274,22 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		{
 			float x, y, theta;
 			U32 backupIndex = layerIndex * QuadCount + i;
+			const ShaftInfo& info = ShaftInfos[layerIndex];
 
 			if (!ThetaBackupInitialized)
 			{
 				ThetaBackup[backupIndex] = i * angleStep;
 			}
 
-			U32 curRanIndex = (randomIndex + i) % QUADS_PER_LAYER;
+			U32 curRanIndex = (info.RandomOffset + i) % QUADS_PER_LAYER;
 
-			//U32 preRanIndex = (curRanIndex + QUADS_PER_LAYER - 1) % QUADS_PER_LAYER;
-
-			if (Go_Back)
+			if (info.GoBackState)
 			{
-				theta = ThetaBackup[backupIndex] + deltaTime * RotationSpeed * RandomNums[curRanIndex];
+				theta = ThetaBackup[backupIndex] + deltaTime * info.RotateSpeed * RandomNums[curRanIndex];
 			}
 			else
 			{
-				theta = ThetaBackup[backupIndex] - deltaTime * RotationSpeed * RandomNums[curRanIndex];
+				theta = ThetaBackup[backupIndex] - deltaTime * info.RotateSpeed * RandomNums[curRanIndex];
 			}
 
 			ThetaBackup[backupIndex] = theta;
@@ -376,7 +317,7 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		VertexBuffer.unlock();
 	}
 
-	FinalMatrix = translationMatrix * viewRotationMatrix * rotationMatrix;
+	FinalMatrix = translationMatrix * viewRotationMatrix;
 
 	setupSGData(&ScatteringMeshRenderInst, sgData);
 
@@ -404,10 +345,62 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		ThetaBackupInitialized = true;
 	}
 
-	if (RotateProcess > RotateInterval)
+	for (U32 i = 0; i < LAYER_NUM; ++i)
 	{
-		RandomOffset = ++RandomOffset % QUADS_PER_LAYER;
-		Go_Back = !Go_Back;
-		RotateProcess -= RotateInterval;
+		ShaftInfos[i].OnPostRender();
 	}
+}
+
+void RenderUnderwaterScatteringMgr::GetViewRotationMatrix(const Point3F& distSun_Cam, MatrixF& viewRotationMatrix)
+{
+	viewRotationMatrix.identity();
+
+	Point3F dirSun_Cam = distSun_Cam;
+	dirSun_Cam.normalize();
+
+	float lengthSun_Cam = dirSun_Cam.len();
+	float lengthSun_Cam_XY = Point2F(dirSun_Cam.x, dirSun_Cam.y).len();
+
+	float eulerSun_Cam_X, eulerSun_Cam_Z;
+	if (fabs(lengthSun_Cam) > 0.001f)
+	{
+		eulerSun_Cam_X = mAsin(dirSun_Cam.z / lengthSun_Cam);
+	}
+	else
+		eulerSun_Cam_X = 0.f;
+	eulerSun_Cam_X = -eulerSun_Cam_X;
+
+	if (fabs(lengthSun_Cam_XY) > 0.001f)
+	{
+		eulerSun_Cam_Z = mAcos(dirSun_Cam.x / lengthSun_Cam_XY);
+		if (dirSun_Cam.y < 0)
+			eulerSun_Cam_Z = M_PI_F * 2.f - eulerSun_Cam_Z;
+	}
+	else
+		eulerSun_Cam_Z = 0.f;
+
+	eulerSun_Cam_Z = -eulerSun_Cam_Z;
+
+
+	viewRotationMatrix *= MatrixF(EulerF(0, 0, eulerSun_Cam_Z));
+	viewRotationMatrix *= MatrixF(EulerF(0, 0, M_PI_F / 2.f));
+	viewRotationMatrix *= MatrixF(EulerF(eulerSun_Cam_X, 0, 0));
+	viewRotationMatrix *= MatrixF(EulerF(-M_PI_F / 2.f, 0, 0));
+}
+
+bool RenderUnderwaterScatteringMgr::PointInWater(Point3F& point)
+{
+	GameConnection* connection = GameConnection::getLocalClientConnection();
+	if( connection )
+	{
+		GameBase* base = connection->getControlObject();
+		Player* player = dynamic_cast<Player*>(base);
+		Camera* camera = dynamic_cast<Camera*>(base);
+		if(player && player->pointInWater(point))
+			return true;
+		else if (camera && camera->pointInWater(point))
+			return true;
+	}
+
+	return false;
 }
