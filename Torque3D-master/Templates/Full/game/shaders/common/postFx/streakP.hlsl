@@ -2,13 +2,13 @@
 sampler src_texture;
 sampler prev_streak;
 
-#define NUM_SAMPLES  8    // Maximum texture grabs
+//#define NUM_SAMPLES  8    // Maximum texture grabs
 
 // Constants
 float  prev_mul;
 // Contains sampling offsets used by the techniques
-float2 sample_offsets[NUM_SAMPLES];
-float3 sample_weights[NUM_SAMPLES];  // coloured!
+//float2 sample_offsets[NUM_SAMPLES];
+//float3 sample_weights[NUM_SAMPLES];  // coloured!
 
 
 //-----------------------------------------------------------------------------
