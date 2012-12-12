@@ -1,3 +1,4 @@
+
 singleton ShaderData( TestScatteringShader )   
 {   
    DXVertexShaderFile     = "shaders/common/testV.hlsl";   

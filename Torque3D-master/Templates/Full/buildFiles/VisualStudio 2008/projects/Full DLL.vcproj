@@ -6012,6 +6012,14 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\..\..\..\Engine\source\renderInstance\renderPostFXPrepassMgr.cpp"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\..\..\Engine\source\renderInstance\renderPostFXPrepassMgr.h"
+						>
+					</File>
+					<File
 						RelativePath="..\..\..\..\..\Engine\source\renderInstance\renderPrePassMgr.cpp"
 						>
 					</File>
@@ -6049,6 +6057,14 @@
 					</File>
 					<File
 						RelativePath="..\..\..\..\..\Engine\source\renderInstance\renderUnderwaterScatteringMgr.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\..\..\Engine\source\renderInstance\renderWaterGlowMgr.cpp"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\..\..\Engine\source\renderInstance\renderWaterGlowMgr.h"
 						>
 					</File>
 				</Filter>

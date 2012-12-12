@@ -15,9 +15,6 @@
 #include "materials/baseMatInstance.h"
 #include "materials/materialManager.h"
 #include "materials/customMaterialDefinition.h"
-#include "T3D/gameBase/gameConnection.h"
-#include "T3D/player.h"
-#include "T3D/camera.h"
 
 IMPLEMENT_CONOBJECT(RenderUnderwaterScatteringMgr);
 
@@ -27,16 +24,11 @@ ConsoleDocClass(RenderUnderwaterScatteringMgr,
 	"@ingroup RenderBin\n");
 
 RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
-: RenderTexTargetBinManager(RenderPassManager::RIT_ObjectTranslucent,
-							1.f,
-							1.f,
-							GFXFormatR8G8B8A8,
-							Point2I(256, 256))
+: RenderPostFXPrepassMgr("underwaterScatteringBuffer",
+							GFXFormatR8G8B8A8)
 {
-	mNamedTarget.registerWithName("underwaterScatteringBuffer");
 	mTargetSizeType = WindowSize;
 
-	ScatteringMeshRenderInst.clear();
 	RenderInstInitialized = false;
 	LastTime = 0.f;
 	ShaftInfos[0].RotateInterval = 0.25f;
@@ -51,8 +43,6 @@ RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
 	ThetaBackup = NULL;
 	ThetaBackupInitialized = false;
 
-	MatInst = NULL;	// TODO : Load a specific material
-
 	MRandomR250 randGen;
 	for (int i = 0; i < QUADS_PER_LAYER; ++i)
 	{
@@ -62,8 +52,6 @@ RenderUnderwaterScatteringMgr::RenderUnderwaterScatteringMgr()
 
 RenderUnderwaterScatteringMgr::~RenderUnderwaterScatteringMgr()
 {
-	ScatteringMeshRenderInst.clear();
-	SAFE_DELETE(MatInst);
 	if (ThetaBackup)
 	{
 		delete[] ThetaBackup;
@@ -80,20 +68,20 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 {
 	PROFILE_SCOPE(RenderUnderwaterScatteringMgr_Render);
 
-	if (!UwScatteringFX)
-		UwScatteringFX = dynamic_cast<PostEffect*>( Sim::findObject( "UwScatteringFx" ) );
-	if (!UwScatteringFX)
+	if (!MainPostFX)
+		MainPostFX = dynamic_cast<PostEffect*>( Sim::findObject( "UwScatteringFx" ) );
+	if (!MainPostFX)
 		return;
 
 	Point3F cameraPos = state->getCameraPosition();
 
 	if (PointInWater(cameraPos))
 	{
-		UwScatteringFX->setSkip(false);
+		MainPostFX->setSkip(false);
 	}
 	else
 	{
-		UwScatteringFX->setSkip(true);
+		MainPostFX->setSkip(true);
 		return;
 	}
 
@@ -145,23 +133,23 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 			PrimitiveBuffer.unlock();
 		}
 
-		ScatteringMeshRenderInst.objectToWorld = &MatrixF::Identity;
-		ScatteringMeshRenderInst.worldToCamera = renderPass->allocSharedXform(RenderPassManager::View);
-		ScatteringMeshRenderInst.projection = renderPass->allocSharedXform(RenderPassManager::Projection);
+		MeshInst.objectToWorld = &MatrixF::Identity;
+		MeshInst.worldToCamera = renderPass->allocSharedXform(RenderPassManager::View);
+		MeshInst.projection = renderPass->allocSharedXform(RenderPassManager::Projection);
 
-		ScatteringMeshRenderInst.type = RenderPassManager::RIT_ObjectTranslucent;
-		ScatteringMeshRenderInst.vertBuff = &VertexBuffer;
-		ScatteringMeshRenderInst.primBuff = &PrimitiveBuffer;
-		ScatteringMeshRenderInst.matInst = MatInst;
-		ScatteringMeshRenderInst.prim = &PrimitiveState;
-		ScatteringMeshRenderInst.prim->type = GFXTriangleList;
-		ScatteringMeshRenderInst.prim->minIndex = 0;
-		ScatteringMeshRenderInst.prim->startIndex = 0;
-		ScatteringMeshRenderInst.prim->numPrimitives = TotalQuadCount * 2;
-		ScatteringMeshRenderInst.prim->startVertex = 0;
-		ScatteringMeshRenderInst.prim->numVertices = VertexCount;
-		ScatteringMeshRenderInst.defaultKey = 0;
-		ScatteringMeshRenderInst.defaultKey2 = 0;
+		MeshInst.type = RenderPassManager::RIT_ObjectTranslucent;
+		MeshInst.vertBuff = &VertexBuffer;
+		MeshInst.primBuff = &PrimitiveBuffer;
+		MeshInst.matInst = MatInst;
+		MeshInst.prim = &PrimitiveState;
+		MeshInst.prim->type = GFXTriangleList;
+		MeshInst.prim->minIndex = 0;
+		MeshInst.prim->startIndex = 0;
+		MeshInst.prim->numPrimitives = TotalQuadCount * 2;
+		MeshInst.prim->startVertex = 0;
+		MeshInst.prim->numVertices = VertexCount;
+		MeshInst.defaultKey = 0;
+		MeshInst.defaultKey2 = 0;
 
 		RenderInstInitialized = true;
 
@@ -319,21 +307,21 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 
 	FinalMatrix = translationMatrix * viewRotationMatrix;
 
-	setupSGData(&ScatteringMeshRenderInst, sgData);
+	setupSGData(&MeshInst, sgData);
 
-	while (ScatteringMeshRenderInst.matInst->setupPass(state, sgData))
+	while (MeshInst.matInst->setupPass(state, sgData))
 	{
 		matrixSet.setWorld(FinalMatrix);
-		matrixSet.setView(*ScatteringMeshRenderInst.worldToCamera);
-		matrixSet.setProjection(*ScatteringMeshRenderInst.projection);
-		ScatteringMeshRenderInst.matInst->setTransforms(matrixSet, state);
-		ScatteringMeshRenderInst.matInst->setSceneInfo(state, sgData);
-		ScatteringMeshRenderInst.matInst->setBuffers(ScatteringMeshRenderInst.vertBuff, ScatteringMeshRenderInst.primBuff);
+		matrixSet.setView(*MeshInst.worldToCamera);
+		matrixSet.setProjection(*MeshInst.projection);
+		MeshInst.matInst->setTransforms(matrixSet, state);
+		MeshInst.matInst->setSceneInfo(state, sgData);
+		MeshInst.matInst->setBuffers(MeshInst.vertBuff, MeshInst.primBuff);
 
-		if (ScatteringMeshRenderInst.prim)
-			GFX->drawPrimitive(*ScatteringMeshRenderInst.prim);
+		if (MeshInst.prim)
+			GFX->drawPrimitive(*MeshInst.prim);
 		else
-			GFX->drawPrimitive(ScatteringMeshRenderInst.primBuffIndex);
+			GFX->drawPrimitive(MeshInst.primBuffIndex);
 	}
 
 	// Finish up.
@@ -386,21 +374,4 @@ void RenderUnderwaterScatteringMgr::GetViewRotationMatrix(const Point3F& distSun
 	viewRotationMatrix *= MatrixF(EulerF(0, 0, M_PI_F / 2.f));
 	viewRotationMatrix *= MatrixF(EulerF(eulerSun_Cam_X, 0, 0));
 	viewRotationMatrix *= MatrixF(EulerF(-M_PI_F / 2.f, 0, 0));
-}
-
-bool RenderUnderwaterScatteringMgr::PointInWater(Point3F& point)
-{
-	GameConnection* connection = GameConnection::getLocalClientConnection();
-	if( connection )
-	{
-		GameBase* base = connection->getControlObject();
-		Player* player = dynamic_cast<Player*>(base);
-		Camera* camera = dynamic_cast<Camera*>(base);
-		if(player && player->pointInWater(point))
-			return true;
-		else if (camera && camera->pointInWater(point))
-			return true;
-	}
-
-	return false;
 }

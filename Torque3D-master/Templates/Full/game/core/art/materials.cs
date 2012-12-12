@@ -79,3 +79,35 @@ singleton CustomMaterial(TestScattering)
    stateBlock = TestScatteringBlock;
 };
 
+/*
+singleton CustomMaterial(DownsampleCutoffMat)
+{
+	mapTo = "unmapped_mat";
+	texture[0] = "$backBuffer";
+	shader = DownsampleCutoffShader;
+}
+
+singleton CustomMaterial(UpStreak0Mat)
+{
+	mapTo = "unmapped_mat";
+	texture[0] = "#waterGlowBuffer";
+	shader = StreakShader;
+}
+
+singleton CustomMaterial(WaterGlowMat)
+{
+   mapTo = "unmapped_mat";
+   diffuseMap[0] = "core/art/warnmat";
+   castShadows = "0";
+   translucent = "0";
+   materialTag0 = "Miscellaneous";
+   diffuseColor[0] = "0.992157 0.992157 0.992157 1";
+   
+   sampler["DiffSampler"] = "core/art/warnmat";  
+   shader = TestScatteringShader;
+   stateBlock = TestScatteringBlock;
+   
+   pass[0] = DownsampleCutoffMat;
+   
+}
+*/
