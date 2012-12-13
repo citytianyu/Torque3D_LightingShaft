@@ -62,3 +62,11 @@ bool RenderPostFXPrepassMgr::PointInWater(Point3F& point)
 
 	return false;
 }
+
+void RenderPostFXPrepassMgr::InitFX(const String& mainFXName, const String& blendFXName)
+{
+	if (!MainPostFX && mainFXName.isNotEmpty())
+		MainPostFX = dynamic_cast<PostEffect*>(Sim::findObject(mainFXName));
+	if (!BlendFX && blendFXName.isNotEmpty())
+		BlendFX = dynamic_cast<PostEffect*>(Sim::findObject(blendFXName));
+}

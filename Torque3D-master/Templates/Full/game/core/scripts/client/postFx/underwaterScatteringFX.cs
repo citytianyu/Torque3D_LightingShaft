@@ -45,11 +45,11 @@ singleton PostEffect( UwScatteringFx )
    shader = UwScatteringFxShader;
    stateBlock = PFX_DefaultStateBlock;
    texture[0] = "#underwaterScatteringBuffer";
-   target = "$outTex";
+   target = "#blurredUnderwaterScattering";
   
-   renderPriority = 2;
+   renderPriority = 1402;
    isEnabled = true;
-   
+ /* 
    new PostEffect()
    {
 	   internalName = "BlendScattering";
@@ -58,6 +58,44 @@ singleton PostEffect( UwScatteringFx )
 	   texture[0] = "$inTex";
 	   target = "$backBuffer";
    };
+ */
 };
 
 
+singleton ShaderData(uw_FullscreenBlendShader)
+{
+	DXVertexShaderFile 	= "shaders/common/postFx/postFxV.hlsl";
+   DXPixelShaderFile 	= "shaders/common/postFx/fullscreenBlendP.hlsl";
+            
+   samplerNames[0] = "$BlendTexture";
+   
+   pixVersion = 2.0;
+};
+
+singleton GFXStateBlockData( underwaterScatteringCompositeBlock : PFX_DefaultStateBlock )
+{   
+   blendDefined = true;
+   blendEnable = true; 
+   blendSrc = GFXBlendOne;
+   blendDest = GFXBlendOne;
+};
+
+$BlendUnderwaterScatteringFx::strength = 1.1;
+function BlendUnderwaterScatteringFx::setShaderConsts(%this)
+{
+	%this.setShaderConst("$Strength", $BlendUnderwaterScatteringFx::strength);
+}
+singleton PostEffect(BlendUnderwaterScatteringFx)
+{
+   allowReflectPass = false;
+      
+   renderTime = "PFXAfterDiffuse";
+   
+   shader = uw_FullscreenBlendShader;
+   stateBlock = underwaterScatteringCompositeBlock;
+   texture[0] = "#blurredUnderwaterScattering";
+   target = "$backBuffer";
+
+   renderPriority = 1401;
+   isEnabled = true;
+};

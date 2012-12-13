@@ -22,6 +22,8 @@ public:
 
 protected:
 	bool			PointInWater(Point3F& point);
+	void			InitFX(const String& mainFXName, const String& blendFXName);
+	void			SkipAll_NoCheck(bool skip) { MainPostFX->setSkip(skip); BlendFX->setSkip(skip); }
 
 	// mesh property
 	MeshRenderInst						MeshInst;
@@ -31,6 +33,7 @@ protected:
 	GFXPrimitive						PrimitiveState;
 
 	SimObjectPtr<PostEffect>			MainPostFX;
+	SimObjectPtr<PostEffect>			BlendFX;
 };
 
 

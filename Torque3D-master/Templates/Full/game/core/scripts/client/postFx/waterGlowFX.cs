@@ -93,8 +93,8 @@ singleton PostEffect(StreakUp1)
 };
 
 $StreakUp2::prev_mul = 0;
-$StreakUp2::offsets = "0 0 0 0	0.001 0.004 0 0	0.002 0.008 0 0	0.003 0.012 0 0	0.004 0.016 0 0	0.005 0.020 0 0	0.006 0.023 0 0	0.007 0.027 0 0";
-$StreakUp2::weights = "0.315 0.315 0.315 0	0.297 0.297 0.297 0	0.281 0.281 0.281 0	0.265 0.265 0.265 0	0.250 0.250 0.250 0	0.236 0.236 0.236 0	0.223 0.223 0.223 0	0.210 0.210 0.210 0";
+$StreakUp2::offsets = "0 0 0 0	0.068 0.251 0 0	0.137 0.501 0 0	0.205 0.752 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
+$StreakUp2::weights = "0.880 0.880 0.880 0	0.025 0.019 0.019 0	0.001 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
 function StreakUp2::setShaderConsts(%this)
 {
 	%this.setShaderConst("$sample_offsets", $StreakUp2::offsets);
@@ -168,7 +168,7 @@ singleton PostEffect(StreakLeft1)
 };
 
 $StreakLeft2::prev_mul = 1;
-$StreakLeft2::offsets = "0 0 0 0	0.188 -0.091 0 0	0.376 -0.182 0 0	0.564 -0.271 0 0	0.752 -0.365 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
+$StreakLeft2::offsets = "0 0 0 0	0.188 -0.091 0 0	0.376 -0.182 0 0	0.564 -0.274 0 0	0.752 -0.365 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
 $StreakLeft2::weights = "0.880 0.880 0.880 0	0.025 0.019 0.019 0	0.001 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
 function StreakLeft2::setShaderConsts(%this)
 {
@@ -246,7 +246,7 @@ singleton PostEffect(StreakDown1)
 };
 
 $StreakDown2::prev_mul = 1;
-$StreakDown2::offsets = "0 0 0 0	-0.068 -0.251 0 0	-0.137 -0.501 0 0	-0.205 -0.752 0 0	0 -0.125 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
+$StreakDown2::offsets = "0 0 0 0	-0.068 -0.251 0 0	-0.137 -0.501 0 0	-0.205 -0.752 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
 $StreakDown2::weights = "0.880 0.880 0.880 0	0.025 0.019 0.019 0	0.001 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
 function StreakDown2::setShaderConsts(%this)
 {
@@ -325,16 +325,6 @@ singleton PostEffect(StreakRight1)
 $StreakRight2::prev_mul = 1;
 $StreakRight2::offsets = "0 0 0 0	-0.188 0.091 0 0	-0.376 0.182 0 0	-0.564 0.274 0 0	-0.752 0.365 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
 $StreakRight2::weights = "0.880 0.880 0.880 0	0.025 0.019 0.019 0	0.001 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0	0 0 0 0";
-
-singleton GFXStateBlockData( waterGlowCompositeBlock : PFX_DefaultStateBlock )
-{   
-   blendDefined = true;
-   blendEnable = true; 
-   blendSrc = GFXBlendOne;
-   blendDest = GFXBlendOne;
-};
-
-
 function StreakRight2::setShaderConsts(%this)
 {
 	%this.setShaderConst("$sample_offsets", $StreakRight2::offsets);
@@ -356,12 +346,42 @@ singleton PostEffect(StreakRight2)
 
    renderPriority = 1498;
    isEnabled = true;
+};
+
+singleton ShaderData(FullscreenBlendShader)
+{
+	DXVertexShaderFile 	= "shaders/common/postFx/postFxV.hlsl";
+   DXPixelShaderFile 	= "shaders/common/postFx/fullscreenBlendP.hlsl";
+            
+   samplerNames[0] = "$BlendTexture";
    
-   new PostEffect()
-   {
-		shader = PFX_PassthruShader;
-		stateBlock = waterGlowCompositeBlock;
-		texture[0] = "#waterGlowBuffer3";
-		target = "$backBuffer";
-   };
+   pixVersion = 2.0;
+};
+
+singleton GFXStateBlockData( waterGlowCompositeBlock : PFX_DefaultStateBlock )
+{   
+   blendDefined = true;
+   blendEnable = true; 
+   blendSrc = GFXBlendOne;
+   blendDest = GFXBlendInvSrcColor;
+};
+
+$BlendWaterGlowFx::strength = 1.8;
+function BlendWaterGlowFx::setShaderConsts(%this)
+{
+	%this.setShaderConst("$Strength", $BlendWaterGlowFx::strength);
+}
+singleton PostEffect(BlendWaterGlowFx)
+{
+   allowReflectPass = false;
+      
+   renderTime = "PFXAfterDiffuse";
+   
+   shader = FullscreenBlendShader;
+   stateBlock = waterGlowCompositeBlock;
+   texture[0] = "#waterGlowBuffer3";
+   target = "$backBuffer";
+
+   renderPriority = 1497;
+   isEnabled = true;
 };

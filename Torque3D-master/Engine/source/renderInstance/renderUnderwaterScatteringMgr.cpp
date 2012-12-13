@@ -68,23 +68,6 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 {
 	PROFILE_SCOPE(RenderUnderwaterScatteringMgr_Render);
 
-	if (!MainPostFX)
-		MainPostFX = dynamic_cast<PostEffect*>( Sim::findObject( "UwScatteringFx" ) );
-	if (!MainPostFX)
-		return;
-
-	Point3F cameraPos = state->getCameraPosition();
-
-	if (PointInWater(cameraPos))
-	{
-		MainPostFX->setSkip(false);
-	}
-	else
-	{
-		MainPostFX->setSkip(true);
-		return;
-	}
-
 	RenderPassManager* renderPass = state->getRenderPass();
 
 	// initialize the render instance resource
@@ -97,6 +80,8 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 	U32 IndexCount = TotalQuadCount * 6;
 	if (!RenderInstInitialized)
 	{
+		InitFX("UwScatteringFx", "BlendUnderwaterScatteringFx");
+
 		LastTime = Sim::getCurrentTime();
 		//MatInst = dynamic_cast<BaseMatInstance*>(Sim::findObject("TestScattering"));
 		CustomMaterial *custMat;
@@ -157,6 +142,22 @@ void RenderUnderwaterScatteringMgr::render(SceneRenderState* state)
 		{
 			ThetaBackup = new float[TotalQuadCount];
 		}
+	}
+
+	// if the camera is under water
+	if (!MainPostFX || (MainPostFX && !MainPostFX->isEnabled()) || !BlendFX || (BlendFX && !BlendFX->isEnabled()))
+		return;
+
+	Point3F cameraPos = state->getCameraPosition();
+
+	if (PointInWater(cameraPos))
+	{
+		SkipAll_NoCheck(false);
+	}
+	else
+	{
+		SkipAll_NoCheck(true);
+		return;
 	}
 
 	// get sun pos
